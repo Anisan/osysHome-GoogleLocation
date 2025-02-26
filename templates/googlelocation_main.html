@@ -1,0 +1,105 @@
+{% extends "layouts/module_admin.html" %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="GoogleLocation">GoogleLocation</a></li>
+{% endblock %}
+{% block module %}
+  <a class="btn btn-primary mb-3" href="#api_settings" data-bs-toggle="collapse"><i class="fas fa-cog"></i>&nbsp;Settings</a>
+  <div class="card collapse p-3" id='api_settings'>
+   <form name="cookies_form" method="POST" action="?op=upload_cookie" enctype="multipart/form-data" class="form-horizontal">
+    <label class="col-lg-7 control-label">Add cookies</label>
+    <div class="d-flex">
+       <div class="col-lg-3"><input class="form-control" type="file" name="file" class="input"></div>
+       <a href='#' onclick='document.forms["cookies_form"].submit(); return false;' title="Add" class="btn btn-warning"><i class='fas fa-plus'></i></a>
+    </div>
+   </form>
+   {%if cookie_files%}
+    Cookies files
+      {%for file in cookie_files%}
+      <div class="d-flex">
+          <a class="btn btn-danger me-3" href="?op=delete_cookie&name={{file.name}}" title="Delete" onClick="return confirm('<#LANG_ARE_YOU_SURE#>')"><i class="fas fa-trash"></i></a>
+          <label class="col-lg-5 control-label">{{file.name}}</label>
+          {%if file.error%}
+            <i class="fas fa-exclamation-circle mt-2 ms-3" style="color:red;"  data-bs-toggle="tooltip" data-bs-placement="right" title='{{file.error}}'></i>
+          {%endif%}
+      </div>
+      {%endfor%}
+   {%else%}
+   <div class="form-group">
+    <label class="col-lg-5 control-label"></label>
+    <div class="col-lg-3">
+       <div class="alert alert-danger">No found cookies files</div>
+    </div>
+   </div>
+   {%endif%}
+
+    {% if form.errors %}
+        <ul>
+        {% for field, errors in form.errors.items() %}
+            {% for error in errors %}
+                <li>{{field}}: {{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+        </ul>
+    {% endif %}
+   <form method="POST">
+        <!-- Поля формы -->
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+            {{ form.timeout.label(class="form-label") }}
+            {{ form.timeout(class="form-control") }}
+        </div>
+        <div class="mb-3">
+            {{ form.limit_speed_min.label(class="form-label") }}
+            {{ form.limit_speed_min(class="form-control") }}
+        </div>
+        <div class="mb-3">
+          {{ form.limit_speed_max.label(class="form-label") }}
+          {{ form.limit_speed_max(class="form-control") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+
+   </div>
+   <br>
+   <a class="btn btn-success" href="?op=update_location" ><i class="fas fa-sync"></i>&nbsp;Update</a>
+   &nbsp;Last update: {{last_update}}
+   <br><br>
+
+    <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Address</th>
+            <th scope="col">Speed</th>
+            <th scope="col">Accuracy</th>
+            <th scope="col">Battery</th>
+            <th scope="col">Last update</th>
+            <th scope="col">GPSTracker</th>
+            <th scope="col">&nbsp;</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in locations %}
+          <tr>
+            <td><img src="{{item.image}}" class="me-3" style="border-radius: 0 50% 50%;" title="{{item.id_user}}" height="30px" onerror="this.src='/GoogleLocation/static/GoogleLocation.png'">{{item.name}}</td>
+            <td>{{item.address}}</td>
+            <td>{{item.speed}}</td>
+            <td>{{item.accuracy}}</td>
+            <td>{% if item.battery_charging%}<i class="fas fa-bolt me-2 text-danger"> </i>{%endif%}{{item.battery_level}}%</td>
+            <td>{{item.last_update}}</td>
+            <td>          
+              {%if item.sendtogps%}
+              <span class="far fa-check-circle text-success panel_icon"></span>
+              {%else%}
+              <span class="far fa-times-circle text-danger panel_icon"></span>
+              {%endif%}
+            </td>
+            <td width="1%" nowrap>
+                <a href="?op=user_edit&id={{item.id}}" class="btn btn-primary btn-sm" title="Edit"><i class="fas fa-edit"></i></a>
+                <a href="?op=user_delete&id={{item.id}}" onClick="return confirm('<#LANG_ARE_YOU_SURE#>')" class="btn btn-danger btn-sm" title="Delete"><i class="fas fa-trash"></i></a>
+             </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
