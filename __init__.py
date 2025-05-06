@@ -7,7 +7,7 @@ import math
 from flask import redirect
 from sqlalchemy import delete
 from app.core.main.BasePlugin import BasePlugin
-from app.database import session_scope
+from app.database import session_scope, get_now_to_utc, row2dict, convert_local_to_utc, convert_utc_to_local
 from plugins.GoogleLocation.models import Location
 from plugins.GoogleLocation.forms.SettingsForm import SettingsForm
 from plugins.GoogleLocation.forms.LocationForm import LocationForm
@@ -85,6 +85,7 @@ class GoogleLocation(BasePlugin):
                 return redirect(self.name)
 
         locations = Location.query.all()
+        locations = [row2dict(location) for location in locations]
 
         files = getFilesCache(os.path.join(self.name,"cookies"))
         cookie_files = [{'name':file, 'error': self.config.get("error_" + file,None)} for file in files]
@@ -93,7 +94,7 @@ class GoogleLocation(BasePlugin):
             'locations': locations,
             'form': settings,
             'cookie_files':cookie_files,
-            'last_update':self.last_update
+            'last_update': convert_utc_to_local(self.last_update)
         }
         return self.render('googlelocation_main.html', content)
 
@@ -111,6 +112,11 @@ class GoogleLocation(BasePlugin):
 
         with session_scope() as session:
             for location in locations:
+                if location['timestamp']:
+                    last_update = convert_local_to_utc(datetime.datetime.fromtimestamp(int(location['timestamp']) / 1000))
+                else:
+                    last_update = get_now_to_utc()
+
                 rec = session.query(Location).where(Location.id_user == location["id"]).one_or_none()
 
                 if not rec:
@@ -120,7 +126,7 @@ class GoogleLocation(BasePlugin):
                     rec.fullname = location["fullname"]
                     rec.image = location['image']
                     rec.speed = 0
-                    rec.last_update = datetime.datetime.now()
+                    rec.last_update = last_update
                     session.add(rec)
                     self.logger.info(f'Добавлен новый пользователь {rec.fullname}!')
                     addNotify('Внимание!',f'Добавлен новый пользователь {rec.fullname}!',CategoryNotify.Info, self.name)
@@ -130,12 +136,12 @@ class GoogleLocation(BasePlugin):
                     #     addNotify('Внимание!',f'Некорректные данные пользователя {rec.fullname}, проверьте настройки!',CategoryNotify.Warning, self.name)
                     continue
 
-                if rec.last_update.strftime('%Y-%m-%d %H:%M:%S') == datetime.datetime.fromtimestamp(int(location['timestamp']) / 1000).strftime('%Y-%m-%d %H:%M:%S'):
+                if rec.last_update.strftime('%Y-%m-%d %H:%M:%S') == last_update.strftime('%Y-%m-%d %H:%M:%S'):
                     # if time.time() - rec.last_update.timestamp() > 24*60*60:
                     #     addNotify('Внимание!',f'Данные пользователя {rec.fullname} не обновляются, проверьте настройки!',CategoryNotify.Warning, self.name)
                     continue
 
-                rec.last_update = datetime.datetime.fromtimestamp(int(location['timestamp']) / 1000)
+                rec.last_update = last_update
                 location['speed'] = self.get_speed(rec, location)
                 if self.config['limit_speed_min'] > location['speed']:
                     location['speed'] = 0
@@ -167,18 +173,18 @@ class GoogleLocation(BasePlugin):
 
             session.commit()
 
-        self.last_update = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.last_update = get_now_to_utc()
 
     def get_speed(self, last: Location, new):
         time_last = last.last_update
         if new['timestamp'] != '':
-            time_new = new['timestamp'] / 1000
+            time_new = convert_local_to_utc(datetime.datetime.fromtimestamp(int(new['timestamp']) / 1000))
         else:
-            time_new = datetime.datetime.now().timestamp()
+            time_new = get_now_to_utc()
         if not last.lat or not last.lng:
             return 0
         dist = self.calculate_the_distance(last.lat, last.lng, new['lat'], new['lon'])
-        diff = time_new - time_last.timestamp()
+        diff = time_new.timestamp() - time_last.timestamp()
         if diff == 0:
             return 0
         return round(dist / diff * 3.6, 2)  # km/h
